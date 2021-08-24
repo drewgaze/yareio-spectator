@@ -26,7 +26,11 @@ class BaseHUD {
             tempEnergy += this.base.current_spirit_cost;
         }
         this.economyScore = tempEnergy - this.prevBaseEnergy;
-        this.economyEfficiency = this.economyScore / living_spirits.filter(x => x.player_id == this.base.player_id && x.hp != 0).reduce((r, s) => r + s.size, 0);
+        this.economyEfficiency =
+            this.economyScore /
+                living_spirits
+                    .filter((x) => x.player_id == this.base.player_id && x.hp != 0)
+                    .reduce((r, s) => r + s.size, 0);
         this.totalEconomyScore += this.economyScore;
         this.totalEconomyEfficiency += this.economyEfficiency;
         this.prevBaseEnergy = this.base.energy;
@@ -36,18 +40,18 @@ class BaseHUD {
         battleHud.ctx.fillStyle = this.base.color;
         battleHud.printText(`${this.base.player_id}`);
         battleHud.currentLineYPos += 6;
-        let units = living_spirits.filter(x => x.player_id == this.base.player_id && x.hp != 0);
-        let deadUnits = living_spirits.filter(x => x.player_id == this.base.player_id && x.hp == 0).length;
+        let units = living_spirits.filter((x) => x.player_id == this.base.player_id && x.hp != 0);
+        let deadUnits = living_spirits.filter((x) => x.player_id == this.base.player_id && x.hp == 0).length;
         let unitCount = units.length;
-        let totalEnergy = units.reduce((sum, s) => sum += s.energy, 0);
-        let totalEnergyCapacity = units.reduce((sum, s) => sum += s.energy_capacity, 0);
+        let totalEnergy = units.reduce((sum, s) => (sum += s.energy), 0);
+        let totalEnergyCapacity = units.reduce((sum, s) => (sum += s.energy_capacity), 0);
         battleHud.printText(`Unit Count: ${Math.trunc(unitCount)}`);
         battleHud.printText(`Dead Units: ${Math.trunc(deadUnits)}`);
         battleHud.printText(`Energy: ${Math.trunc(totalEnergy)}`);
         battleHud.printText(`Energy Capacity: ${Math.trunc(totalEnergyCapacity)}`);
         battleHud.printText(`Economy Score (energy/s): ${Math.trunc(this.economyScore)}`);
         battleHud.printText(`Avg Economy Score (energy/s): ${Math.trunc(this.totalEconomyScore / this.economyScoreCount)}`);
-        battleHud.printText(`Economic Efficiency: ${(this.economyEfficiency).toFixed(2)}`);
+        battleHud.printText(`Economic Efficiency: ${this.economyEfficiency.toFixed(2)}`);
         battleHud.printText(`Avg Economic Efficiency: ${(this.totalEconomyEfficiency / this.economyScoreCount).toFixed(2)}`);
         battleHud.currentLineYPos += 24;
     }
@@ -75,6 +79,7 @@ class BattleHUD {
         this.hasLogged = false;
         this.isDrag = false;
         this.isMouseDown = false;
+        this.playerId = "";
     }
     getRect() {
         const rect = {};
@@ -85,19 +90,31 @@ class BattleHUD {
         return rect;
     }
     getUnitsInRect() {
-        return living_spirits.filter(x => x.hp != 0 && isPointInRectangle(x.position, this.rect)).map(x => x.id);
+        return living_spirits
+            .filter((x) => x.hp > 0 && x.player_id === this.playerId && isPointInRectangle(x.position, this.rect))
+            .map((x) => x.id);
+    }
+    clearSquare() {
+        // const w = this.endX - this.startX;
+        // const h = this.endY - this.startY;
+        // const offsetX = w < 0 ? w : 0;
+        // const offsetY = h < 0 ? h : 0;
+        // const width = Math.abs(w);
+        // const height = Math.abs(h);
+        // this.ctx.clearRect(this.startX, this.startY, width, height);
+        this.ctx.clearRect(0, 0, this.hud.width, this.hud.height);
     }
     drawSquare() {
-        var w = this.endX - this.startX;
-        var h = this.endY - this.startY;
-        var offsetX = (w < 0) ? w : 0;
-        var offsetY = (h < 0) ? h : 0;
-        var width = Math.abs(w);
-        var height = Math.abs(h);
+        const w = this.endX - this.startX;
+        const h = this.endY - this.startY;
+        const offsetX = w < 0 ? w : 0;
+        const offsetY = h < 0 ? h : 0;
+        const width = Math.abs(w);
+        const height = Math.abs(h);
         this.ctx.beginPath();
         this.ctx.rect(this.startX + offsetX, this.startY + offsetY, width, height);
         this.ctx.lineWidth = 2;
-        this.ctx.strokeStyle = 'white';
+        this.ctx.strokeStyle = "white";
         this.ctx.stroke();
         this.rect = this.getRect();
     }
@@ -114,10 +131,7 @@ class BattleHUD {
     }
     translateMousePos(e) {
         var rect = this.canvas.getBoundingClientRect();
-        return [
-            e.clientX - rect.left,
-            e.clientY - rect.top
-        ];
+        return [e.clientX - rect.left, e.clientY - rect.top];
     }
     init() {
         this.onPointerDown = window.onPointerDown;
@@ -136,6 +150,7 @@ class BattleHUD {
             if (e.ctrlKey) {
                 this.canvas.style.cursor = "crosshair";
                 const [x, y] = this.translateMousePos(e);
+                this.clearSquare();
                 this.startX = this.endX = x;
                 this.startY = this.endY = y;
                 this.drawSquare();
@@ -147,23 +162,26 @@ class BattleHUD {
         const onUp = (e) => {
             this.isMouseDown = false;
             this.canvas.style.cursor = "default";
+            this.clearSquare();
             if (!this.isDrag && e.ctrlKey) {
                 let position = this.getPosition(e);
-                console.log('sending position', position);
-                sendData('position', [position]);
+                console.log("sending position", position);
+                sendData("position", [position]);
             }
             else if (e.ctrlKey) {
                 const [x, y] = this.translateMousePos(e);
                 this.endX = x;
                 this.endY = y;
-                this.drawSquare();
-                console.log('selected', this.getUnitsInRect());
+                const selected = this.getUnitsInRect();
+                console.log("selected", selected);
+                sendData("selected", [selected]);
             }
             this.onPointerUp(e);
         };
         const onMove = (e) => {
             this.isDrag = true;
             if (e.ctrlKey && this.isMouseDown) {
+                this.clearSquare();
                 const [x, y] = this.translateMousePos(e);
                 this.endX = x;
                 this.endY = y;
@@ -174,32 +192,31 @@ class BattleHUD {
         document.addEventListener("mousedown", onDown, false);
         document.addEventListener("mouseup", onUp, false);
         document.addEventListener("mousemove", onMove, false);
-        let template = document.createElement('canvas');
+        let template = document.createElement("canvas");
         template.setAttribute("style", "z-index:-2");
         template.setAttribute("width", `${window.innerWidth}px`);
         template.setAttribute("height", `${window.innerHeight}px`);
         document.body.appendChild(template);
-        //document.querySelector('body').innerHTML += `<canvas id="tofu_canvas" style="height:100vh; z-index:-2">`;
         this.hud = template;
         this.ctx = this.hud.getContext("2d");
         this.basesHud = [];
-        bases.forEach(x => {
+        bases.forEach((x) => {
             this.basesHud.push(new BaseHUD(x));
         });
     }
     render() {
-        this.ctx.clearRect(0, 0, this.hud.width, this.hud.height);
-        this.ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
+        this.ctx.clearRect(this.hud.width - 300, 0, this.hud.width - 300, 800);
+        this.ctx.fillStyle = "rgba(0, 255, 0, 0.7)";
         this.currentLineYPos = 100;
         this.currentLineXPos = this.hud.width - 50;
-        this.printText("Total unit count: " + living_spirits.filter(x => x.hp != 0).length);
+        this.printText("Total unit count: " + living_spirits.filter((x) => x.hp != 0).length);
         this.currentLineYPos += 20;
         this.basesHud.forEach((x, index) => {
             x.render();
         });
     }
     tick() {
-        this.basesHud.forEach(x => {
+        this.basesHud.forEach((x) => {
             x.tick();
         });
     }
@@ -220,6 +237,16 @@ class BattleHUD {
 var world_initiated = 0;
 var battleHud = new BattleHUD();
 setTimeout(() => runHud(), 3000);
+function onChannelMessage(e) {
+    if (e.detail.playerId) {
+        if (world_initiated === 0) {
+            battleHud.playerId = e.detail.playerId[0];
+            console.log("channel event", e.detail);
+            world_initiated = 1;
+        }
+    }
+}
+document.addEventListener("chan", onChannelMessage, false);
 function runHud() {
     console.log("ready");
     var oldRender;

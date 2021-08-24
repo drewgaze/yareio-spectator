@@ -1,10 +1,10 @@
 type Point = [number, number];
 
 interface Rect {
-    A: Point;
-    B: Point;
-    C: Point;
-    D: Point;
+  A: Point;
+  B: Point;
+  C: Point;
+  D: Point;
 }
 
 const dot = (u: Point, v: Point) => u[0] * v[0] + u[1] * v[1];
@@ -31,224 +31,225 @@ function vector(p1, p2): Point {
 }
 
 class BattleHUD {
+  hud: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+  selecting: boolean = false;
+  selectionStart: Position;
+  currentLineYPos: number;
+  currentLineXPos: number;
+  hasLogged: boolean = false;
+  isDrag: boolean = false;
+  isMouseDown: boolean = false;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  rect: Rect;
+  playerId: string = "";
 
-    hud: HTMLCanvasElement;
-    ctx: CanvasRenderingContext2D;
-    selecting: boolean = false;
-    selectionStart: Position;
-    currentLineYPos: number;
-    currentLineXPos: number;
-    hasLogged: boolean = false;
-    isDrag: boolean = false;
-    isMouseDown: boolean = false;
-    startX: number;
-    startY: number;
-    endX: number;
-    endY: number;
-    rect: Rect;
+  canvas: any;
 
-    canvas: any;
+  onPointerDown: Function;
+  onPointerUp: Function;
+  onPointerMove: Function;
 
-    onPointerDown: Function;
-    onPointerUp: Function;
-    onPointerMove: Function;
+  basesHud: BaseHUD[];
 
-    basesHud: BaseHUD[];
+  getRect() {
+    const rect = {} as Rect;
 
-    getRect() {
-        const rect = {} as Rect;
-        
-        rect.A = this.getBoardPosition([this.startX, this.startY]);
-        rect.B = this.getBoardPosition([this.endX, this.startY]);
-        rect.C = this.getBoardPosition([this.startX, this.endY]);
-        rect.D = this.getBoardPosition([this.endX, this.endY]);
+    rect.A = this.getBoardPosition([this.startX, this.startY]);
+    rect.B = this.getBoardPosition([this.endX, this.startY]);
+    rect.C = this.getBoardPosition([this.startX, this.endY]);
+    rect.D = this.getBoardPosition([this.endX, this.endY]);
 
-        return rect;
-    }
+    return rect;
+  }
 
-    getUnitsInRect() {
-        return living_spirits.filter(x => x.hp != 0 && isPointInRectangle(x.position, this.rect)).map(x => x.id);
-    }
+  getUnitsInRect() {
+    return living_spirits
+      .filter(
+        (x) =>
+          x.hp > 0 && x.player_id === this.playerId && isPointInRectangle(x.position, this.rect)
+      )
+      .map((x) => x.id);
+  }
 
-    drawSquare() {
-        var w = this.endX - this.startX;
-        var h = this.endY - this.startY;
-        var offsetX = (w < 0) ? w : 0;
-        var offsetY = (h < 0) ? h : 0;
-        var width = Math.abs(w);
-        var height = Math.abs(h);
-                    
-        this.ctx.beginPath();
-        this.ctx.rect(this.startX + offsetX, this.startY + offsetY, width, height);
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeStyle = 'white';
-        this.ctx.stroke();
+  clearSquare() {
+    this.ctx.clearRect(0, 0, this.hud.width, this.hud.height);
+  }
 
-        this.rect = this.getRect();
-    }
+  drawSquare() {
+    const w = this.endX - this.startX;
+    const h = this.endY - this.startY;
+    const offsetX = w < 0 ? w : 0;
+    const offsetY = h < 0 ? h : 0;
+    const width = Math.abs(w);
+    const height = Math.abs(h);
 
-    getPosition(e) {
-        let {x, y} = window.getMousePos(e);
+    this.ctx.beginPath();
+    this.ctx.rect(this.startX + offsetX, this.startY + offsetY, width, height);
+    this.ctx.lineWidth = 2;
+    this.ctx.strokeStyle = "white";
+    this.ctx.stroke();
 
-        return this.getBoardPosition([x,y]);
-    }
+    this.rect = this.getRect();
+  }
 
-    getBoardPosition(point: Point): Point {
-        const [x,y] = point;
+  getPosition(e) {
+    let { x, y } = window.getMousePos(e);
 
-        let multiplier = 1 / window.scale;
+    return this.getBoardPosition([x, y]);
+  }
 
-        let boardX = x*multiplier - window.offsetX;
-        let boardY = y*multiplier - window.offsetY;
+  getBoardPosition(point: Point): Point {
+    const [x, y] = point;
 
-        return [boardX,boardY];
-    }
+    let multiplier = 1 / window.scale;
 
-    translateMousePos(e) {
-        var rect = this.canvas.getBoundingClientRect();
+    let boardX = x * multiplier - window.offsetX;
+    let boardY = y * multiplier - window.offsetY;
 
-        return [
-            e.clientX - rect.left,
-            e.clientY - rect.top
-        ];
-    }
+    return [boardX, boardY];
+  }
 
-    init() {
+  translateMousePos(e) {
+    var rect = this.canvas.getBoundingClientRect();
 
-        this.onPointerDown = window.onPointerDown;
-        this.onPointerUp = window.onPointerUp;
-        this.onPointerMove = window.onPointerMove;
+    return [e.clientX - rect.left, e.clientY - rect.top];
+  }
 
-        document.querySelector("#update_switch_wrapper").remove();
-        document.querySelector("#panel").remove();
+  init() {
+    this.onPointerDown = window.onPointerDown;
+    this.onPointerUp = window.onPointerUp;
+    this.onPointerMove = window.onPointerMove;
 
-        window.console_toggle();
+    document.querySelector("#update_switch_wrapper").remove();
+    document.querySelector("#panel").remove();
 
-        this.canvas = document.querySelector("#base_canvas");
+    window.console_toggle();
 
-        document.removeEventListener("mousedown", window.onPointerDown);
-        document.removeEventListener("mousemove", window.onPointerMove);
-        document.removeEventListener("mouseup", window.onPointerUp);
+    this.canvas = document.querySelector("#base_canvas");
 
-        const onDown = (e) => {
-            this.isDrag = false;
-            this.isMouseDown = true;
+    document.removeEventListener("mousedown", window.onPointerDown);
+    document.removeEventListener("mousemove", window.onPointerMove);
+    document.removeEventListener("mouseup", window.onPointerUp);
 
-            if (e.ctrlKey) {
-                this.canvas.style.cursor="crosshair";
+    const onDown = (e) => {
+      this.isDrag = false;
+      this.isMouseDown = true;
 
-                const [x,y] = this.translateMousePos(e);
+      if (e.ctrlKey) {
+        this.canvas.style.cursor = "crosshair";
 
-                this.startX = this.endX = x;
-                this.startY = this.endY = y;
+        const [x, y] = this.translateMousePos(e);
 
-                this.drawSquare();
+        this.clearSquare();
 
-            } else {
-                this.onPointerDown(e);
-            }
-        }
+        this.startX = this.endX = x;
+        this.startY = this.endY = y;
 
-        const onUp = (e) => {
+        this.drawSquare();
+      } else {
+        this.onPointerDown(e);
+      }
+    };
 
-            this.isMouseDown = false;
-            this.canvas.style.cursor="default";
+    const onUp = (e) => {
+      this.isMouseDown = false;
+      this.canvas.style.cursor = "default";
 
-            if (!this.isDrag && e.ctrlKey) {
+      this.clearSquare();
 
-                let position = this.getPosition(e);
+      if (!this.isDrag && e.ctrlKey) {
+        let position = this.getPosition(e);
 
-                console.log('sending position', position);
+        console.log("sending position", position);
 
-                sendData('position', [position]);
+        sendData("position", [position]);
+      } else if (e.ctrlKey) {
+        const [x, y] = this.translateMousePos(e);
 
-            } else if (e.ctrlKey) {
+        this.endX = x;
+        this.endY = y;
 
-                const [x,y] = this.translateMousePos(e);
+        const selected = this.getUnitsInRect();
 
-                this.endX = x;
-                this.endY = y;
+        console.log("selected", selected);
+        sendData("selected", [selected]);
+      }
 
-                this.drawSquare();
+      this.onPointerUp(e);
+    };
 
-                console.log('selected', this.getUnitsInRect());
-            }
-            
-            this.onPointerUp(e);
-        }
+    const onMove = (e) => {
+      this.isDrag = true;
 
-        const onMove = (e) => {
-            this.isDrag = true;
-            
-            if (e.ctrlKey && this.isMouseDown) {
+      if (e.ctrlKey && this.isMouseDown) {
+        this.clearSquare();
 
-                const [x,y] = this.translateMousePos(e);
+        const [x, y] = this.translateMousePos(e);
 
-                this.endX = x;
-                this.endY = y;
+        this.endX = x;
+        this.endY = y;
 
-                this.drawSquare();
-            }
+        this.drawSquare();
+      }
 
-            this.onPointerMove(e);
-        }
+      this.onPointerMove(e);
+    };
 
-        document.addEventListener("mousedown", onDown, false);
-        document.addEventListener("mouseup", onUp, false);
-        document.addEventListener("mousemove", onMove, false);
+    document.addEventListener("mousedown", onDown, false);
+    document.addEventListener("mouseup", onUp, false);
+    document.addEventListener("mousemove", onMove, false);
 
-        let template = document.createElement('canvas');
-        template.setAttribute("style", "z-index:-2");
-        template.setAttribute("width", `${window.innerWidth}px`);
-        template.setAttribute("height", `${window.innerHeight}px`);
-        document.body.appendChild(template);
+    let template = document.createElement("canvas");
+    template.setAttribute("style", "z-index:-2");
+    template.setAttribute("width", `${window.innerWidth}px`);
+    template.setAttribute("height", `${window.innerHeight}px`);
+    document.body.appendChild(template);
 
-        //document.querySelector('body').innerHTML += `<canvas id="tofu_canvas" style="height:100vh; z-index:-2">`;
-        this.hud = template;
-        this.ctx = this.hud.getContext("2d");
+    this.hud = template;
+    this.ctx = this.hud.getContext("2d");
 
+    this.basesHud = [];
+    bases.forEach((x) => {
+      this.basesHud.push(new BaseHUD(x));
+    });
+  }
 
-        this.basesHud = [];
-        bases.forEach(x => {
-            this.basesHud.push(new BaseHUD(x));
-        });
-    }
+  render() {
+    this.ctx.clearRect(this.hud.width - 300, 0, this.hud.width - 300, 800);
 
-    render() {
+    this.ctx.fillStyle = "rgba(0, 255, 0, 0.7)";
+    this.currentLineYPos = 100;
+    this.currentLineXPos = this.hud.width - 50;
+    this.printText("Total unit count: " + living_spirits.filter((x) => x.hp != 0).length);
 
-        this.ctx.clearRect(0, 0, this.hud.width, this.hud.height);
+    this.currentLineYPos += 20;
+    this.basesHud.forEach((x, index) => {
+      x.render();
+    });
+  }
 
-        this.ctx.fillStyle = 'rgba(0, 255, 0, 0.7)';
-        this.currentLineYPos = 100;
-        this.currentLineXPos = this.hud.width - 50;
-        this.printText("Total unit count: " + living_spirits.filter(x => x.hp != 0).length)
+  tick() {
+    this.basesHud.forEach((x) => {
+      x.tick();
+    });
+  }
 
-        this.currentLineYPos += 20;
-        this.basesHud.forEach((x,index) => {
-            x.render();
-        });
-    }
+  drawText(text: string, x: number, y: number) {
+    this.ctx.font = "16px Arial";
+    this.ctx.fillText(text, x, y);
+  }
 
-    tick() {
-        this.basesHud.forEach(x => {
-            x.tick();
-        });
-    }
+  printText(text: string) {
+    let width = this.ctx.measureText(text).width;
+    let tempLineXPos = this.currentLineXPos;
 
-    drawText(text: string, x: number, y: number) {
-        this.ctx.font = "16px Arial";
-        this.ctx.fillText(text, x, y);
-    }
+    tempLineXPos = this.hud.width - width - (this.hud.width - tempLineXPos);
 
-    printText(text: string) {
-        let width = this.ctx.measureText(text).width;
-        let tempLineXPos = this.currentLineXPos;
-
-        tempLineXPos = this.hud.width - width - (this.hud.width - tempLineXPos);
-
-
-        this.drawText(text, tempLineXPos, this.currentLineYPos)
-        this.currentLineYPos += 20;
-    }
-
+    this.drawText(text, tempLineXPos, this.currentLineYPos);
+    this.currentLineYPos += 20;
+  }
 }
