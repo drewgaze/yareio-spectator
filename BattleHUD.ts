@@ -1,3 +1,4 @@
+
 class BattleHUD {
 
     hud: HTMLCanvasElement;
@@ -6,15 +7,143 @@ class BattleHUD {
     selectionStart: Position;
     currentLineYPos: number;
     currentLineXPos: number;
+    hasLogged: boolean = false;
+    isDrag: boolean = false;
+    isMouseDown: boolean = false;
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+
+    canvas: any;
+
+    onPointerDown: Function;
+    onPointerUp: Function;
+    onPointerMove: Function;
 
     basesHud: BaseHUD[];
-    unitGraph: UnitGraph;
+
+    drawSquare() {
+        var w = this.endX - this.startX;
+        var h = this.endY - this.startY;
+        var offsetX = (w < 0) ? w : 0;
+        var offsetY = (h < 0) ? h : 0;
+        var width = Math.abs(w);
+        var height = Math.abs(h);
+                    
+        this.ctx.beginPath();
+        this.ctx.rect(this.startX + offsetX, this.startY + offsetY, width, height);
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeStyle = 'white';
+        this.ctx.stroke();
+    }
+
+    getPosition(e) {
+        let {x, y} = window.getMousePos(e);
+
+        let multiplier = 1 / window.scale;
+
+        let boardX = x*multiplier - window.offsetX;
+        let boardY = y*multiplier - window.offsetY;
+
+        return [boardX,boardY];
+    }
+
+    translateMousePos(e) {
+        var rect = this.canvas.getBoundingClientRect();
+
+        return [
+            e.clientX - rect.left,
+            e.clientY - rect.top
+        ];
+    }
 
     init() {
+
+        this.onPointerDown = window.onPointerDown;
+        this.onPointerUp = window.onPointerUp;
+        this.onPointerMove = window.onPointerMove;
+
+        document.querySelector("#update_switch_wrapper").remove();
+        document.querySelector("#panel").remove();
+
+        window.console_toggle();
+
+        this.canvas = document.querySelector("#base_canvas");
+
+        document.removeEventListener("mousedown", window.onPointerDown);
+        document.removeEventListener("mousemove", window.onPointerMove);
+        document.removeEventListener("mouseup", window.onPointerUp);
+
+        const onDown = (e) => {
+            this.isDrag = false;
+            this.isMouseDown = true;
+
+            if (e.ctrlKey) {
+                this.canvas.style.cursor="crosshair";
+
+                const [x,y] = this.translateMousePos(e);
+
+                this.startX = this.endX = x;
+                this.startY = this.endY = y;
+
+                this.drawSquare();
+
+            } else {
+                this.onPointerDown(e);
+            }
+        }
+
+        const onUp = (e) => {
+
+            this.isMouseDown = false;
+            this.canvas.style.cursor="default";
+
+            if (!this.isDrag && e.ctrlKey) {
+
+                let position = this.getPosition(e);
+
+                console.log('sending position', position);
+
+                sendData('position', [position]);
+
+            } else if (e.ctrlKey) {
+
+                const [x,y] = this.translateMousePos(e);
+
+                this.endX = x;
+                this.endY = y;
+
+                this.drawSquare();
+            }
+            
+            this.onPointerUp(e);
+        }
+
+        const onMove = (e) => {
+            this.isDrag = true;
+            
+            if (e.ctrlKey && this.isMouseDown) {
+
+                const [x,y] = this.translateMousePos(e);
+
+                this.endX = x;
+                this.endY = y;
+
+                this.drawSquare();
+            }
+
+            this.onPointerMove(e);
+        }
+
+        document.addEventListener("mousedown", onDown, false);
+        document.addEventListener("mouseup", onUp, false);
+        document.addEventListener("mousemove", onMove, false);
+
         let template = document.createElement('canvas');
         template.setAttribute("style", "z-index:-2");
-        template.setAttribute("width", `${window.innerWidth}`);
-        template.setAttribute("height", `${window.innerHeight}`);
+        template.setAttribute("width", `${window.innerWidth}px`);
+        template.setAttribute("height", `${window.innerHeight}px`);
         document.body.appendChild(template);
 
         //document.querySelector('body').innerHTML += `<canvas id="tofu_canvas" style="height:100vh; z-index:-2">`;
@@ -26,9 +155,6 @@ class BattleHUD {
         bases.forEach(x => {
             this.basesHud.push(new BaseHUD(x));
         });
-
-        this.unitGraph = new UnitGraph();
-
     }
 
     render() {
@@ -43,7 +169,6 @@ class BattleHUD {
         this.currentLineYPos += 20;
         this.basesHud.forEach((x,index) => {
             x.render();
-            this.unitGraph.drawGraph(index, x.base.color);
         });
     }
 
@@ -51,7 +176,6 @@ class BattleHUD {
         this.basesHud.forEach(x => {
             x.tick();
         });
-        this.unitGraph.buildGraphData();
     }
 
     drawText(text: string, x: number, y: number) {

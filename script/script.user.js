@@ -55,12 +55,97 @@ class BaseHUD {
 class BattleHUD {
     constructor() {
         this.selecting = false;
+        this.hasLogged = false;
+        this.isDrag = false;
+        this.isMouseDown = false;
+    }
+    drawSquare() {
+        // creating a square
+        var w = this.endX - this.startX;
+        var h = this.endY - this.startY;
+        var offsetX = (w < 0) ? w : 0;
+        var offsetY = (h < 0) ? h : 0;
+        var width = Math.abs(w);
+        var height = Math.abs(h);
+        this.ctx.beginPath();
+        this.ctx.rect(this.startX + offsetX, this.startY + offsetY, width, height);
+        //this.ctx.fill();
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeStyle = 'white';
+        this.ctx.stroke();
+    }
+    getPosition(e) {
+        let { x, y } = window.getMousePos(e);
+        let multiplier = 1 / window.scale;
+        let boardX = x * multiplier - window.offsetX;
+        let boardY = y * multiplier - window.offsetY;
+        return [boardX, boardY];
+    }
+    translateMousePos(e) {
+        var rect = this.canvas.getBoundingClientRect();
+        return [
+            e.clientX - rect.left,
+            e.clientY - rect.top
+        ];
     }
     init() {
+        this.onPointerDown = window.onPointerDown;
+        this.onPointerUp = window.onPointerUp;
+        this.onPointerMove = window.onPointerMove;
+        document.querySelector("#update_switch_wrapper").remove();
+        document.querySelector("#panel").remove();
+        window.console_toggle();
+        this.canvas = document.querySelector("#base_canvas");
+        document.removeEventListener("mousedown", window.onPointerDown);
+        document.removeEventListener("mousemove", window.onPointerMove);
+        document.removeEventListener("mouseup", window.onPointerUp);
+        const onDown = (e) => {
+            this.isDrag = false;
+            this.isMouseDown = true;
+            if (e.ctrlKey) {
+                this.canvas.style.cursor = "crosshair";
+                const [x, y] = this.translateMousePos(e);
+                this.startX = this.endX = x;
+                this.startY = this.endY = y;
+                this.drawSquare();
+            }
+            else {
+                this.onPointerDown(e);
+            }
+        };
+        const onUp = (e) => {
+            this.isMouseDown = false;
+            this.canvas.style.cursor = "default";
+            if (!this.isDrag && e.ctrlKey) {
+                let position = this.getPosition(e);
+                console.log('sending position', position);
+                sendData('position', [position]);
+            }
+            else if (e.ctrlKey) {
+                const [x, y] = this.translateMousePos(e);
+                this.endX = x;
+                this.endY = y;
+                this.drawSquare();
+            }
+            this.onPointerUp(e);
+        };
+        const onMove = (e) => {
+            this.isDrag = true;
+            if (e.ctrlKey && this.isMouseDown) {
+                const [x, y] = this.translateMousePos(e);
+                this.endX = x;
+                this.endY = y;
+                this.drawSquare();
+            }
+            this.onPointerMove(e);
+        };
+        document.addEventListener("mousedown", onDown, false);
+        document.addEventListener("mouseup", onUp, false);
+        document.addEventListener("mousemove", onMove, false);
         let template = document.createElement('canvas');
         template.setAttribute("style", "z-index:-2");
-        template.setAttribute("width", `${window.innerWidth}`);
-        template.setAttribute("height", `${window.innerHeight}`);
+        template.setAttribute("width", `${window.innerWidth}px`);
+        template.setAttribute("height", `${window.innerHeight}px`);
         document.body.appendChild(template);
         //document.querySelector('body').innerHTML += `<canvas id="tofu_canvas" style="height:100vh; z-index:-2">`;
         this.hud = template;
@@ -69,7 +154,6 @@ class BattleHUD {
         bases.forEach(x => {
             this.basesHud.push(new BaseHUD(x));
         });
-        this.unitGraph = new UnitGraph();
     }
     render() {
         this.ctx.clearRect(0, 0, this.hud.width, this.hud.height);
@@ -80,14 +164,12 @@ class BattleHUD {
         this.currentLineYPos += 20;
         this.basesHud.forEach((x, index) => {
             x.render();
-            this.unitGraph.drawGraph(index, x.base.color);
         });
     }
     tick() {
         this.basesHud.forEach(x => {
             x.tick();
         });
-        this.unitGraph.buildGraphData();
     }
     drawText(text, x, y) {
         this.ctx.font = "16px Arial";
@@ -101,42 +183,8 @@ class BattleHUD {
         this.currentLineYPos += 20;
     }
 }
-class UnitGraph {
-    constructor() {
-        this.graphIndex = 0;
-        this.graphData = [];
-        this.lastTData = null;
-    }
-    buildGraphData() {
-        let w = window;
-        let gameBlocks = Object.entries(w.game_blocks);
-        if (this.lastTData != w.active_block) {
-            this.graphData = gameBlocks.map(e => ({
-                'tick': parseInt(e[0].substr(1)),
-                'values': [Object.values(e[1].p1).reduce((r, s) => s[3] ? r + s[1] : r, 0) * (w.shapes.shape1 == "squares" ? 112 / 200 : 1),
-                    Object.values(e[1].p2).reduce((r, s) => s[3] ? r + s[1] : r, 0) * (w.shapes.shape2 == "squares" ? 112 / 200 : 1)]
-            })).sort((a, b) => b.tick - a.tick);
-            this.lastTData = w.active_block;
-        }
-        this.graphIndex++;
-    }
-    drawGraph(index, color) {
-        if (this.graphData.length > 0) {
-            battleHud.ctx.strokeStyle = color;
-            battleHud.ctx.beginPath();
-            let x = battleHud.hud.width;
-            battleHud.ctx.moveTo(--x, battleHud.hud.height - 80 - this.graphData[0].values[index]);
-            console.log(this.graphData);
-            this.graphData.forEach(data => {
-                battleHud.ctx.lineTo(--x, battleHud.hud.height - 80 - data.values[index]);
-            });
-            battleHud.ctx.stroke();
-        }
-    }
-}
 /// <reference path="./BaseHud.ts" />
 /// <reference path="./BattleHUD.ts" />
-/// <reference path="./UnitGraph.ts" />
 var world_initiated = 0;
 var battleHud = new BattleHUD();
 setTimeout(() => runHud(), 3000);

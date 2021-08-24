@@ -1,6 +1,5 @@
 /// <reference path="./BaseHud.ts" />
 /// <reference path="./BattleHUD.ts" />
-/// <reference path="./UnitGraph.ts" />
 
 var world_initiated = 0;
 var battleHud: BattleHUD = new BattleHUD();
