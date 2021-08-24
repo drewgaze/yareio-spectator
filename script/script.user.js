@@ -52,6 +52,23 @@ class BaseHUD {
         battleHud.currentLineYPos += 24;
     }
 }
+const dot = (u, v) => u[0] * v[0] + u[1] * v[1];
+function isPointInRectangle(point, rect) {
+    const AB = vector(rect.A, rect.B);
+    const AM = vector(rect.A, point);
+    const BC = vector(rect.B, rect.C);
+    const BM = vector(rect.B, point);
+    const dotABAM = dot(AB, AM);
+    const dotABAB = dot(AB, AB);
+    const dotBCBM = dot(BC, BM);
+    const dotBCBC = dot(BC, BC);
+    return 0 <= dotABAM && dotABAM <= dotABAB && 0 <= dotBCBM && dotBCBM <= dotBCBC;
+}
+function vector(p1, p2) {
+    const [x1, y1] = p1;
+    const [x2, y2] = p2;
+    return [x2 - x1, y2 - y1];
+}
 class BattleHUD {
     constructor() {
         this.selecting = false;
@@ -59,8 +76,18 @@ class BattleHUD {
         this.isDrag = false;
         this.isMouseDown = false;
     }
+    getRect() {
+        const rect = {};
+        rect.A = this.getBoardPosition([this.startX, this.startY]);
+        rect.B = this.getBoardPosition([this.endX, this.startY]);
+        rect.C = this.getBoardPosition([this.startX, this.endY]);
+        rect.D = this.getBoardPosition([this.endX, this.endY]);
+        return rect;
+    }
+    getUnitsInRect() {
+        return living_spirits.filter(x => x.hp != 0 && isPointInRectangle(x.position, this.rect)).map(x => x.id);
+    }
     drawSquare() {
-        // creating a square
         var w = this.endX - this.startX;
         var h = this.endY - this.startY;
         var offsetX = (w < 0) ? w : 0;
@@ -69,13 +96,17 @@ class BattleHUD {
         var height = Math.abs(h);
         this.ctx.beginPath();
         this.ctx.rect(this.startX + offsetX, this.startY + offsetY, width, height);
-        //this.ctx.fill();
         this.ctx.lineWidth = 2;
         this.ctx.strokeStyle = 'white';
         this.ctx.stroke();
+        this.rect = this.getRect();
     }
     getPosition(e) {
         let { x, y } = window.getMousePos(e);
+        return this.getBoardPosition([x, y]);
+    }
+    getBoardPosition(point) {
+        const [x, y] = point;
         let multiplier = 1 / window.scale;
         let boardX = x * multiplier - window.offsetX;
         let boardY = y * multiplier - window.offsetY;
@@ -126,6 +157,7 @@ class BattleHUD {
                 this.endX = x;
                 this.endY = y;
                 this.drawSquare();
+                console.log('selected', this.getUnitsInRect());
             }
             this.onPointerUp(e);
         };
